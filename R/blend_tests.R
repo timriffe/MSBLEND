@@ -85,7 +85,7 @@ time_to %>%
   mutate(time = time / time[age == 60]) %>% 
   ggplot(aes(x = age, y = time, color = state_from)) + 
   geom_line() 
-  dim(time_to)
+
 
 # tempting to do lifetable averaging of lx to get Lx
 # but will resist for the time being. Still to double
@@ -296,7 +296,118 @@ tidysub <-
   glimpse()
 
 # need new notation. (in)_(from)
+dat <- TRsub
+IDLT <- function(dat, init, interval = 2){
+  n <- nrow(dat)
+  Hx <- rep(0, n+1)
+  Ux <- rep(0, n+1)
+  
+  hhx <- dat %>% pull(m11)
+  hux <- dat %>% pull(m12)
+  uux <- dat %>% pull(m22)
+  uhx <- dat %>% pull(m21)
+  
+  if (missing(init)){
+    u1 <- matrix(c(hhx[1],hux[1],uhx[1],uux[1]),2)
+    init <- c(.5,.5)
+    for (i in 1:30){
+      init <- u1 %*% init
+      init <- init / sum(init)
+    }
+  }
+  #cat(init)
+  Hx[1] <- init[1] * interval
+  Ux[1] <- init[2] * interval
+  
+  for (i in 1:n){
+    Hx[i+1] <- Hx[i] * hhx[i] + Ux[i] * uhx[i]
+    Ux[i+1] <- Ux[i] * uux[i] + Hx[i] * hux[i]
+  }
+  
+  data.frame(age= c(48,dat$age),Hx=Hx,Ux=Ux,hhx=c(hhx,0),hux=c(hux,0),uux=c(uux,0),uhx=c(uhx,0))
+}
+library(tidyverse)
+ID <- 
+  TRsub %>% 
+  IDLT() %>% 
+  mutate(tr_hhx = hhx * Hx,
+         tr_hux = hux * Hx,
+         tr_uux = uux * Ux,
+         tr_uhx = uhx * Ux,
+         # reverse probabilities: 
+         # (note interstate transfer directions)
+         r_hh = tr_hhx / lead(Hx),
+         r_hu = tr_uhx / lead(Hx),
+         r_uu = tr_uux / lead(Ux),
+         r_uh = tr_hux / lead(Ux))
+
+# check
+ID$tr_hhx[-32] + ID$tr_uhx[-32] - ID$Hx[-1]
+
+# now figure out rU
+
+ID$tr_uhx
+rpi2u <- function(rpivec, 
+         from ="H",
+         to = "H",
+         start_age = 50,
+         interval = 2) {
+  out           <- cbind(0,rbind(diag(rpivec),0))
+  n             <- length(rpivec)
+  # the final subtraction of the interval is particular to
+  # the way these probabilities were estimated and labelled.
+  # to technically our first one goes from 48 to 50, not from 50 to 52.
+  ages          <- ((0:n) * interval) + start_age - interval
+  from_names    <- c(paste(from,ages,sep="::"))
+  # to_names      <-c(paste(to,ages[-1],sep="::"),"D::Inf")
+  # TR: double checking alignment of age
+  to_names      <- c(paste(to,ages,sep="::"))
+  dimnames(out) <- list(to_names, from_names)
+  out
+}
+
+rHH <- rpi2u(rpivec=ID$r_hh[-32],"H","H")
+rUH <- rpi2u(rpivec=ID$r_uh[-32],"U","H")
+rUU <- rpi2u(rpivec=ID$r_uu[-32],"U","U")
+rHU <- rpi2u(rpivec=ID$r_hu[-32],"H","U")
+# does this need to change?
+rU <- u2U(rHH,rHU,rUH,rUU)
+
+# ------------------------------------ #
+# reverse prevalence convergence       #
+# ------------------------------------ #
+rU[,64]
+pop <- matrix(0,ncol=33,nrow=64)
+pop[1:32,1] <- 1
+for (i in 1:32){
+  pop[,i+1] <- rU %*% pop[,i]
+}
+
+PH <- pop[1:32,1:32]
+PU <- pop[33:64,1:32]
+rpi1 <- PH / (PH + PU)
+
+pop <- matrix(0,ncol=33,nrow=64)
+pop[33:64,1] <- 1
+for (i in 1:32){
+  pop[,i+1] <-  rU %*% pop[,i]
+}
+PH <- pop[1:32,1:32]
+PU <- pop[33:64,1:32]
+rpi2 <- PH / (PH + PU)
+
+a2 <- seq(50,112,by=2)
+plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1),
+     main = "not yet identical to chrono convergence")
 
 
-  
-  
+
+
+for (i in 1:32){
+  lines(a2[1:(33-i)],rev(rpi1[row(rpi1) + col(rpi1) == (34 - i)]), col = "#FF000080")
+  lines(a2[1:(33-i)],rev(rpi2[row(rpi2) + col(rpi2) == (34 - i)]), col = "#0000FF80")
+}
+
+check <- c(rep(0,31),1,rep(0,32))
+
+rU%*% (rU %*% check)
