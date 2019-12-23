@@ -145,7 +145,7 @@ PH[upper.tri(PH)] <- NA
 PU[upper.tri(PU)] <- NA
 
 pi2 <- PH / (PH + PU)
-
+a2 <- seq(50,112,by=2)
 plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1))
 for (i in 1:32){
   lines(a2[i:32],pi1[row(pi1) == (col(pi1) -1 + i)], col = "#FF000080")
@@ -224,8 +224,7 @@ p <- init_pop(init = phoptim, U = U)
 ph <- p$ph
 pu <- p$pu
 
-plot(a2, ph / (ph + pu), ylim = c(0,1))
-
+lines(a2, ph / (ph + pu))
 # --------------------------------------------------- #
 # mix first probs many times?                         #
 # --------------------------------------------------- #
@@ -242,7 +241,7 @@ p <- init_pop(init = init_it[1], U = U)
 ph <- p$ph
 pu <- p$pu
 
-plot(a2, ph / (ph + pu), ylim = c(0,1))
+lines(a2, ph / (ph + pu), lty = 2,lwd=2)
 # this works better
 
 # --------------------------------------------------- #
@@ -258,9 +257,46 @@ time_to <- Nlong %>%
   summarize(time = sum(time)) %>% 
   arrange(state_to, age)
 
+# take peek at occupancy curves
 time_to %>% 
-  filter(state_to == "U")
+  ggplot(aes(x = age, y = time, color = state_to)) +
+  geom_line()
 
-unique(Nlong$state_to)
+tidysub <-
+  TRsub %>% 
+  rename(H_H = m11,
+         H_U = m12,
+         H_D = m14,
+         U_U = m22,
+         U_H = m21,
+         U_D = m24
+  ) %>% 
+  pivot_longer(cols = H_H:U_D,
+               names_to = c("state_from", "state_to"),
+               names_sep = "_",
+               values_to = "prob") %>% 
+  # ensure exact composition, possibly redundant
+  group_by(state_from, age) %>% 
+  mutate(prob = prob / sum(prob)) %>% 
+  filter(state_to != "D") %>% 
+  rename(year = time,
+         state_in = state_to) %>% 
+  glimpse()
 
 
+# try calc transfers, presently these are wrong:
+# transfers need deno of time in state_from, not state_in.
+# these need to be old transfers not new ones. Somewhere we
+# have an alignment problem.
+  time_to %>% 
+  rename(state_in = state_to) %>% 
+  left_join(tidysub) %>% 
+  mutate(transfers = prob * time) %>% 
+  select(state_in, state_from, age, time, prob, transfers) %>% 
+  glimpse()
+
+# need new notation. (in)_(from)
+
+
+  
+  
