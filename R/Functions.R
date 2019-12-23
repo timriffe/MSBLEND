@@ -15,7 +15,7 @@ pi2u <- function(pivec,
   from_names    <- c(paste(from,ages[-length(ages)],sep="::"),"D::Inf")
   # to_names      <-c(paste(to,ages[-1],sep="::"),"D::Inf")
   # TR: double checking alignment of age
-  to_names      <- from_names
+  to_names      <- c(paste(to,ages[-length(ages)],sep="::"),"D::Inf")
   dimnames(out) <- list(to_names, from_names)
   out
 }

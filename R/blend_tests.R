@@ -60,8 +60,6 @@ Nlong <- U %>%
   filter(age > age_from,
          state_to != "D")
 
-Nlong %>% head()
-
 
 # calculate total time spent in each age and state,
 # should have as many versions as origin ages.
@@ -247,5 +245,22 @@ pu <- p$pu
 plot(a2, ph / (ph + pu), ylim = c(0,1))
 # this works better
 
+# --------------------------------------------------- #
+# get 
+
+head(Nlong)
+time_to <- Nlong %>% 
+  filter(age_from == 48) %>% 
+  group_by(state_from, age) %>% 
+  mutate(time= time * ifelse(state_from == "H", init_it[1], init_it[2])) %>% 
+  ungroup() %>% 
+  group_by(state_to,age) %>% 
+  summarize(time = sum(time)) %>% 
+  arrange(state_to, age)
+
+time_to %>% 
+  filter(state_to == "U")
+
+unique(Nlong$state_to)
 
 
