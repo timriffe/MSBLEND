@@ -400,14 +400,37 @@ a2 <- seq(50,112,by=2)
 plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1),
      main = "not yet identical to chrono convergence")
 
-
-
-
 for (i in 1:32){
   lines(a2[1:(33-i)],rev(rpi1[row(rpi1) + col(rpi1) == (34 - i)]), col = "#FF000080")
   lines(a2[1:(33-i)],rev(rpi2[row(rpi2) + col(rpi2) == (34 - i)]), col = "#0000FF80")
 }
-
+stationary_init <- ph / (ph + pu)
+lines(a2, stationary_init, lty = 2,lwd=2)
 check <- c(rep(0,31),1,rep(0,32))
 
 rU%*% (rU %*% check)
+
+
+# Test shows convergence toward a different prevalence.
+# so left with the question of how to define the backward 
+# probabilities properly
+pop <- matrix(0,ncol=33,nrow=64)
+pop[,1] <- c(stationary_init,1-stationary_init)
+for (i in 1:32){
+  pop[,i+1] <- rU %*% pop[,i]
+}
+
+PH <- pop[1:32,1:32]
+PU <- pop[33:64,1:32]
+rpitest <- PH / (PH + PU)
+
+plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1),
+     main = "not yet identical to chrono convergence")
+
+for (i in 1:32){
+  lines(a2[1:(33-i)],rev(rpitest[row(rpitest) + col(rpitest) == (34 - i)]), col = "#FF000080")
+}
+lines(a2, stationary_init, lty = 2,lwd=2)
+
+
+
