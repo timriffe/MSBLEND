@@ -35,3 +35,16 @@ U2N <- function(U, interval = 2) {
   Nsx
 }
 
+# create U from data subset
+sub2U <- function(X){
+  HH <- pi2u(pivec = TRsub[,"m11"], from = "H", to = "H")
+  HU <- pi2u(pivec = TRsub[,"m12"], from = "H", to = "U")
+  UH <- pi2u(pivec = TRsub[,"m21"], from = "U", to = "H")
+  UU <- pi2u(pivec = TRsub[,"m22"], from = "U", to = "U")
+  
+  U <- u2U(HH = HH, # healthy to healthy
+           HU = HU, # healthy to unhealthy
+           UH = UH, # unhealthy to healthy
+           UU = UU) # unhealthy to unhealthy
+}
+

@@ -29,26 +29,13 @@ TRsub <- TR %>% filter(sex == "f",
                        edu == "terciary",
                        time == 1996)
 
-# starting proportions in each state
+# starting proportions in each state,
+# based on observed prevalence around age 50
 init <- TRsub[1,c("s1_prop","s2_prop")] %>% unlist()
-names(init) <- c("H","D")
+names(init) <- c("H","U")
 
 # Make the submatrices of U, the transient matrix
-HH <- pi2u(pivec = TRsub[,"m11"], from = "H", to = "H")
-HU <- pi2u(pivec = TRsub[,"m12"], from = "H", to = "U")
-UH <- pi2u(pivec = TRsub[,"m21"], from = "U", to = "H")
-UU <- pi2u(pivec = TRsub[,"m22"], from = "U", to = "U")
-
-# we need to bind these like this:
-# |-------|
-# | HH UH |
-# | HU UU |
-# |-------|
-
-U <- u2U(HH = HH, # healthy to healthy
-         HU = HU, # healthy to unhealthy
-         UH = UH, # unhealthy to healthy
-         UU = UU) # unhealthy to unhealthy
+U <- sub2U(TRsub)
 
 # so far this is all matrix architecture, now we have 
 # the transient matrix, which we can transform to the 
@@ -73,6 +60,9 @@ Nlong <- U %>%
   filter(age > age_from,
          state_to != "D")
 
+Nlong %>% head()
+
+
 # calculate total time spent in each age and state,
 # should have as many versions as origin ages.
 time_to <- Nlong %>% 
@@ -80,20 +70,17 @@ time_to <- Nlong %>%
   summarize(time = sum(time)) %>% 
   arrange(state_from, age_from, age)
 
-
-
-
-
-
-
-
+# this can only happen with blending already in place.
+# Hmmmm. Could do a blend with an assumed age 50 prev, turn
+# it into an optimization problem.
 Nlong %>% 
   group_by(state_to, age, age_from) %>% 
   summarize(time = sum(time)) %>% 
-  arrange(state_from, age_from, age)
+  arrange(state_to, age_from, age)
 
 
 # cnvergence within 5 time steps 
+# (see chronological convergence plots later in script)
 time_to %>% 
   filter(age_from == 48) %>% 
   group_by(state_from) %>% 
@@ -106,7 +93,7 @@ time_to %>%
 # but will resist for the time being. Still to double
 # check age alignments.
 
-TRsub %>% 
+tidysub <- TRsub %>% 
   rename(H_H = m11,
          H_U = m12,
          H_D = m14,
@@ -122,8 +109,9 @@ TRsub %>%
   group_by(state_from, age) %>% 
   mutate(prob = prob / sum(prob))
 
-
-
+head(tidysub)
+Nlong %>% 
+  filter(age_from == 48)
 
 
 # TODO:
@@ -195,8 +183,69 @@ PU[upper.tri(PU)] <- NA
 
 pi2_d <- PH / (PH + PU)
 
+a2 <- seq(50,112,by=2)
 plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1))
 for (i in 1:32){
   lines(a2[i:32],pi1_d[row(pi1) == (col(pi1) -1 + i)], col = "#FF000080")
   lines(a2[i:32],pi2_d[row(pi2) == (col(pi2) -1 + i)], col = "#0000FF80")
 }
+
+# --------------------------------------------------- #
+# optimized starting prevalence                       #
+# --------------------------------------------------- #
+
+# pretty good, but not optimal. Really, should just optimize on first jump.
+init_pop <- function(init, U){
+  pop <- matrix(0,ncol=33,nrow=64)
+  pop[1,1]  <- init
+  pop[33,1] <- 1 - init
+  for (i in 1:32){
+    pop[,i+1] <-  U %*% pop[,i]
+  }
+  PH <- pop[1:32,1:32]
+  PU <- pop[33:64,1:32]
+  
+  ph <- diag(PH)
+  pu <- diag(PU)
+  
+  list(ph=ph,pu=pu)
+}
+
+init_min <- function(par =.9, U){
+  p <- init_pop(init = par, U = U)
+  ph <- p$ph
+  pu <- p$pu
+  # really will only affect first part of curve.
+  sum(abs(diff(ph / (ph + pu))))
+}
+
+phoptim   <- optimize(interval = c(.7,1), f=init_min, U = U)$min
+initoptim <- c(phoptim, 1 - phoptim)
+
+p <- init_pop(init = phoptim, U = U)
+ph <- p$ph
+pu <- p$pu
+
+plot(a2, ph / (ph + pu), ylim = c(0,1))
+
+# --------------------------------------------------- #
+# mix first probs many times?                         #
+# --------------------------------------------------- #
+
+u1 <- matrix(c(TRsub[1,"m11"],TRsub[1,"m12"],TRsub[1,"m21"],TRsub[1,"m22"]),2)
+init_it <- c(.5,.5)
+for (i in 1:30){
+  init_it <- u1 %*% init_it
+  init_it <- init_it / sum(init_it)
+}
+init_it
+
+p <- init_pop(init = init_it[1], U = U)
+ph <- p$ph
+pu <- p$pu
+
+plot(a2, ph / (ph + pu), ylim = c(0,1))
+# this works better
+
+
+
