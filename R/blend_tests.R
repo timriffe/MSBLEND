@@ -29,14 +29,6 @@ TRsub <- TR %>% filter(sex == "f",
                        edu == "terciary",
                        time == 1996)
 
-m11 <- TRsub[,"m11"]
-m12 <- TRsub[,"m12"]
-m13 <- TRsub[,"m14"]
-
-m21 <- TRsub[,"m21"]
-m22 <- TRsub[,"m22"]
-m23 <- TRsub[,"m24"]
-
 # starting proportions in each state
 init <- TRsub[1,c("s1_prop","s2_prop")] %>% unlist()
 names(init) <- c("H","D")
@@ -60,7 +52,8 @@ U <- u2U(HH = HH, # healthy to healthy
 
 # so far this is all matrix architecture, now we have 
 # the transient matrix, which we can transform to the 
-# fundamental matrix
+# fundamental matrix and then post-process to get what
+# is needed from it
 
 Nlong <- U %>% 
   U2N() %>% 
@@ -80,15 +73,34 @@ Nlong <- U %>%
   filter(age > age_from,
          state_to != "D")
 
-# calculate total time spend in each age and state,
+# calculate total time spent in each age and state,
 # should have as many versions as origin ages.
 time_to <- Nlong %>% 
   group_by(state_from, age, age_from) %>% 
   summarize(time = sum(time)) %>% 
   arrange(state_from, age_from, age)
 
-head(time_to)
-head(Nlong)
+
+
+
+
+
+
+
+Nlong %>% 
+  group_by(state_to, age, age_from) %>% 
+  summarize(time = sum(time)) %>% 
+  arrange(state_from, age_from, age)
+
+
+# cnvergence within 5 time steps 
+time_to %>% 
+  filter(age_from == 48) %>% 
+  group_by(state_from) %>% 
+  mutate(time = time / time[age == 60]) %>% 
+  ggplot(aes(x = age, y = time, color = state_from)) + 
+  geom_line() 
+  dim(time_to)
 
 # tempting to do lifetable averaging of lx to get Lx
 # but will resist for the time being. Still to double
@@ -110,6 +122,10 @@ TRsub %>%
   group_by(state_from, age) %>% 
   mutate(prob = prob / sum(prob))
 
+
+
+
+
 # TODO:
 # 1) merge probabilities
 # 2) get event counts relative to age 48 starting pop
@@ -117,5 +133,70 @@ TRsub %>%
 # is it just as simple as event/time_to ?
 
 
+# ------------------------------------ #
+# chronologocal prevalence convergence #
+# ------------------------------------ #
+pop <- matrix(0,ncol=33,nrow=64)
+pop[1:32,1] <- 1
+for (i in 1:32){
+  pop[,i+1] <-  U %*% pop[,i]
+}
+PH <- pop[1:32,1:32]
+PU <- pop[33:64,1:32]
+PH[upper.tri(PH)] <- NA
+PU[upper.tri(PU)] <- NA
+
+pi1 <- PH / (PH + PU)
+
+pop <- matrix(0,ncol=33,nrow=64)
+pop[33:64,1] <- 1
+for (i in 1:32){
+  pop[,i+1] <-  U %*% pop[,i]
+}
+PH <- pop[1:32,1:32]
+PU <- pop[33:64,1:32]
+PH[upper.tri(PH)] <- NA
+PU[upper.tri(PU)] <- NA
+
+pi2 <- PH / (PH + PU)
+
+plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1))
+for (i in 1:32){
+  lines(a2[i:32],pi1[row(pi1) == (col(pi1) -1 + i)], col = "#FF000080")
+  lines(a2[i:32],pi2[row(pi2) == (col(pi2) -1 + i)], col = "#0000FF80")
+}
 
 
+# Same thing: closer initial prev is to age x prev the faster it converges.
+# and with .8/.2 ?
+pop <- matrix(0,ncol=33,nrow=64)
+pop[1:32,1] <- .8
+pop[33:64,1] <- .2
+for (i in 1:32){
+  pop[,i+1] <-  U %*% pop[,i]
+}
+PH <- pop[1:32,1:32]
+PU <- pop[33:64,1:32]
+PH[upper.tri(PH)] <- NA
+PU[upper.tri(PU)] <- NA
+
+pi1_d <- PH / (PH + PU)
+
+pop <- matrix(0,ncol=33,nrow=64)
+pop[1:32,1]  <- .2
+pop[33:64,1] <- .8
+for (i in 1:32){
+  pop[,i+1] <-  U %*% pop[,i]
+}
+PH <- pop[1:32,1:32]
+PU <- pop[33:64,1:32]
+PH[upper.tri(PH)] <- NA
+PU[upper.tri(PU)] <- NA
+
+pi2_d <- PH / (PH + PU)
+
+plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1))
+for (i in 1:32){
+  lines(a2[i:32],pi1_d[row(pi1) == (col(pi1) -1 + i)], col = "#FF000080")
+  lines(a2[i:32],pi2_d[row(pi2) == (col(pi2) -1 + i)], col = "#0000FF80")
+}
