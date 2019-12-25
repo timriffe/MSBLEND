@@ -105,83 +105,38 @@ Nlong %>%
 # ------------------------------------ #
 # chronologocal prevalence convergence #
 # ------------------------------------ #
-pop <- matrix(0,ncol=33,nrow=64)
-pop[1:32,1] <- 1
+pi1 <- proj_prev(initH = rep(1, 32),U)
+pi0 <- proj_prev(initH = rep(0, 32),U)
+a2  <- seq(50, 112 ,by = 2)
+plot(NULL, type = 'n', xlim = c(50, 110), ylim = c(0, 1))
 for (i in 1:32){
-  pop[,i+1] <-  U %*% pop[,i]
-}
-PH <- pop[1:32,1:32]
-PU <- pop[33:64,1:32]
-PH[upper.tri(PH)] <- NA
-PU[upper.tri(PU)] <- NA
-
-pi1 <- PH / (PH + PU)
-
-pop <- matrix(0,ncol=33,nrow=64)
-pop[33:64,1] <- 1
-for (i in 1:32){
-  pop[,i+1] <-  U %*% pop[,i]
-}
-PH <- pop[1:32,1:32]
-PU <- pop[33:64,1:32]
-PH[upper.tri(PH)] <- NA
-PU[upper.tri(PU)] <- NA
-
-pi2 <- PH / (PH + PU)
-a2 <- seq(50,112,by=2)
-plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1))
-for (i in 1:32){
-  lines(a2[i:32],pi1[row(pi1) == (col(pi1) -1 + i)], col = "#FF000080")
-  lines(a2[i:32],pi2[row(pi2) == (col(pi2) -1 + i)], col = "#0000FF80")
+  lines(a2[i:32], pi1[row(pi1) == (col(pi1) - 1 + i)], col = "#FF000080")
+  lines(a2[i:32], pi0[row(pi0) == (col(pi0) - 1 + i)], col = "#0000FF80")
 }
 
-# try different starting prevalence.
-
+# --------------------------------------------------- #
+# alternative starting prevs                          #
+# --------------------------------------------------- #
 phoptim   <- optimize(interval = c(.7,1), f=init_min, U = U)$min
-initoptim <- c(phoptim, 1 - phoptim)
+pi_optim  <- proj_prev(c(phoptim,rep(0,31)), U) %>% diag()
 
-p  <- init_pop(init = phoptim, U = U)
-ph <- p$ph
-pu <- p$pu
-
-lines(a2, ph / (ph + pu))
-# --------------------------------------------------- #
-# mix first probs many times?                         #
-# --------------------------------------------------- #
-
-u1 <- matrix(c(TRsub[1,"m11"],TRsub[1,"m12"],TRsub[1,"m21"],TRsub[1,"m22"]),2)
-init_it <- c(.5,.5)
-for (i in 1:30){
-  init_it <- u1 %*% init_it
-  init_it <- init_it / sum(init_it)
-}
-
-
-init_it
-
-p <- init_pop(init = init_it[1], U = U)
-ph <- p$ph
-pu <- p$pu
+init_it   <- init_constant(TRsub)
+pi_it     <- proj_prev(c(init_it[1],rep(0,31)), U) %>% diag()
 # again using the back probability-derived starting prop
-rp <- init_pop(init = 0.9158685 , U = U)
-rph <- rp$ph
-rpu <- rp$pu
+rpi       <- proj_prev(c(0.9158685,rep(0,31)), U) %>% diag()
+
 plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1))
 for (i in 1:32){
   lines(a2[i:32],pi1[row(pi1) == (col(pi1) -1 + i)], col = "#FF000080")
   lines(a2[i:32],pi2[row(pi2) == (col(pi2) -1 + i)], col = "#0000FF80")
 }
-lines(a2, ph / (ph + pu), lty = 1,lwd=1,col="magenta")
-lines(a2, rph / (rph + rpu), lty = 2,lwd=1)
-
-
-plot(a2,ph / (ph + pu) - rph / (rph + rpu))
+lines(a2, pi_it, lty = 1,lwd=1,col="magenta")
+lines(a2, rpi, lty = 2,lwd=1)
+lines(a2, pi_optim)
 # this works better
 
 # --------------------------------------------------- #
-# get 
 
-head(Nlong)
 time_to <- Nlong %>% 
   filter(age_from == 48) %>% 
   group_by(state_from, age) %>% 
@@ -214,8 +169,7 @@ tidysub <-
   mutate(prob = prob / sum(prob)) %>% 
   filter(state_to != "D") %>% 
   rename(year = time,
-         state_in = state_to) %>% 
-  glimpse()
+         state_in = state_to) 
 
 
 # try calc transfers, presently these are wrong:
@@ -226,11 +180,10 @@ tidysub <-
   rename(state_in = state_to) %>% 
   left_join(tidysub) %>% 
   mutate(transfers = prob * time) %>% 
-  select(state_in, state_from, age, time, prob, transfers) %>% 
-  glimpse()
+  select(state_in, state_from, age, time, prob, transfers)
 
 # need new notation. (in)_(from)
-dat <- TRsub
+# build out increment-decrement LT
 
 ID <- 
   TRsub %>% 
@@ -253,7 +206,7 @@ ID <-
 # 
 # ID$tr_uhx
 
-
+# build back prob projection matrices
 rHH <- rpi2u(rpivec=ID$r_hh[-32],"H","H")
 rUH <- rpi2u(rpivec=ID$r_uh[-32],"U","H")
 rUU <- rpi2u(rpivec=ID$r_uu[-32],"U","U")
@@ -267,7 +220,7 @@ rU <- u2U(rHH,rHU,rUH,rUU)
 # ------------------------------------ #
 # reverse prevalence convergence       #
 # ------------------------------------ #
-rU[,64]
+
 pop <- matrix(0,ncol=33,nrow=64)
 pop[1:32,1] <- 1
 for (i in 1:32){

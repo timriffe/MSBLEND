@@ -72,20 +72,45 @@ sub2U <- function(X){
 # --------------------------------------------------- #
 
 # pretty good, but not optimal. Really, should just optimize on first jump.
-init_pop <- function(init, U){
-  pop <- matrix(0,ncol=33,nrow=64)
-  pop[1,1]  <- init
-  pop[33,1] <- 1 - init
+
+# project forward
+proj_pop <- function(initH = rep(1,32), U){
+  init <- c(initH,1-initH)
+  
+  
+  pop <- matrix(0, ncol= 33,nrow = 64)
+  pop[, 1]  <- init
   for (i in 1:32){
     pop[,i+1] <-  U %*% pop[,i]
   }
-  PH <- pop[1:32,1:32]
-  PU <- pop[33:64,1:32]
+  pop
+}
+
+# get back projection matrix of prevalences, in diagonals,
+# direction depends on whether forward or backward.
+proj_prev <- function(initH, U){
+  pop <- proj_pop(initH,U)
+  PH  <- pop[1:32,1:32]
+  PU  <- pop[33:64,1:32]
+  PH[upper.tri(PH)] <- NA
+  PU[upper.tri(PU)] <- NA
   
-  ph <- diag(PH)
-  pu <- diag(PU)
+  pi  <- PH / (PH + PU)
   
-  list(ph=ph,pu=pu)
+  pi
+}
+
+# do a proj and pick out just the prevalence
+init_pop <- function(initH, U){
+
+  pop <- proj_pop(initH, U = U)
+  PH  <- pop[1:32, 1:32]
+  PU  <- pop[33:64, 1:32]
+  
+  ph  <- diag(PH)
+  pu  <- diag(PU)
+  
+  list(ph = ph, pu = pu)
 }
 
 init_min <- function(par =.9, U){
@@ -96,7 +121,12 @@ init_min <- function(par =.9, U){
   sum(abs(diff(ph / (ph + pu))))
 }
 
-
+# based on assumption of frozen probs before first age group
+init_constant <- function(TRsub){
+  u <- matrix(c(TRsub[1,"m11"],TRsub[1,"m12"],TRsub[1,"m21"],TRsub[1,"m22"]),2)
+  v <- eigen(u)$vectors[,1]
+  v / sum(v)
+}
 # increment decrement lifetable, two states only.
 IDLT <- function(dat, init, interval = 2){
   n <- nrow(dat)
