@@ -14,16 +14,6 @@ source(here::here("R","Functions.R"))
 # Read in the data (Daniel Schneider gave these to me, haha)
 TR <- readRDS(here::here("Data","TR_v06_collapsed.rds"))
 
-# take a peek: we have many strata
-head(TR)
-
-# These are the things we can subset on.
-unique(TR$time) 
-unique(TR$sex) 
-unique(TR$edu) 
-unique(TR$age)
-
-
 # define a subset
 TRsub <- TR %>% filter(sex == "f",
                        edu == "terciary",
@@ -112,13 +102,6 @@ Nlong %>%
   filter(age_from == 48)
 
 
-# TODO:
-# 1) merge probabilities
-# 2) get event counts relative to age 48 starting pop
-# 3) figure out how to get backwards probabilities. 
-# is it just as simple as event/time_to ?
-
-
 # ------------------------------------ #
 # chronologocal prevalence convergence #
 # ------------------------------------ #
@@ -152,75 +135,12 @@ for (i in 1:32){
   lines(a2[i:32],pi2[row(pi2) == (col(pi2) -1 + i)], col = "#0000FF80")
 }
 
-
-# Same thing: closer initial prev is to age x prev the faster it converges.
-# and with .8/.2 ?
-pop <- matrix(0,ncol=33,nrow=64)
-pop[1:32,1] <- .8
-pop[33:64,1] <- .2
-for (i in 1:32){
-  pop[,i+1] <-  U %*% pop[,i]
-}
-PH <- pop[1:32,1:32]
-PU <- pop[33:64,1:32]
-PH[upper.tri(PH)] <- NA
-PU[upper.tri(PU)] <- NA
-
-pi1_d <- PH / (PH + PU)
-
-pop <- matrix(0,ncol=33,nrow=64)
-pop[1:32,1]  <- .2
-pop[33:64,1] <- .8
-for (i in 1:32){
-  pop[,i+1] <-  U %*% pop[,i]
-}
-PH <- pop[1:32,1:32]
-PU <- pop[33:64,1:32]
-PH[upper.tri(PH)] <- NA
-PU[upper.tri(PU)] <- NA
-
-pi2_d <- PH / (PH + PU)
-
-a2 <- seq(50,112,by=2)
-plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1))
-for (i in 1:32){
-  lines(a2[i:32],pi1_d[row(pi1) == (col(pi1) -1 + i)], col = "#FF000080")
-  lines(a2[i:32],pi2_d[row(pi2) == (col(pi2) -1 + i)], col = "#0000FF80")
-}
-
-# --------------------------------------------------- #
-# optimized starting prevalence                       #
-# --------------------------------------------------- #
-
-# pretty good, but not optimal. Really, should just optimize on first jump.
-init_pop <- function(init, U){
-  pop <- matrix(0,ncol=33,nrow=64)
-  pop[1,1]  <- init
-  pop[33,1] <- 1 - init
-  for (i in 1:32){
-    pop[,i+1] <-  U %*% pop[,i]
-  }
-  PH <- pop[1:32,1:32]
-  PU <- pop[33:64,1:32]
-  
-  ph <- diag(PH)
-  pu <- diag(PU)
-  
-  list(ph=ph,pu=pu)
-}
-
-init_min <- function(par =.9, U){
-  p <- init_pop(init = par, U = U)
-  ph <- p$ph
-  pu <- p$pu
-  # really will only affect first part of curve.
-  sum(abs(diff(ph / (ph + pu))))
-}
+# try different starting prevalence.
 
 phoptim   <- optimize(interval = c(.7,1), f=init_min, U = U)$min
 initoptim <- c(phoptim, 1 - phoptim)
 
-p <- init_pop(init = phoptim, U = U)
+p  <- init_pop(init = phoptim, U = U)
 ph <- p$ph
 pu <- p$pu
 
@@ -235,13 +155,27 @@ for (i in 1:30){
   init_it <- u1 %*% init_it
   init_it <- init_it / sum(init_it)
 }
+
+
 init_it
 
 p <- init_pop(init = init_it[1], U = U)
 ph <- p$ph
 pu <- p$pu
+# again using the back probability-derived starting prop
+rp <- init_pop(init = 0.9158685 , U = U)
+rph <- rp$ph
+rpu <- rp$pu
+plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1))
+for (i in 1:32){
+  lines(a2[i:32],pi1[row(pi1) == (col(pi1) -1 + i)], col = "#FF000080")
+  lines(a2[i:32],pi2[row(pi2) == (col(pi2) -1 + i)], col = "#0000FF80")
+}
+lines(a2, ph / (ph + pu), lty = 1,lwd=1,col="magenta")
+lines(a2, rph / (rph + rpu), lty = 2,lwd=1)
 
-lines(a2, ph / (ph + pu), lty = 2,lwd=2)
+
+plot(a2,ph / (ph + pu) - rph / (rph + rpu))
 # this works better
 
 # --------------------------------------------------- #
@@ -297,36 +231,7 @@ tidysub <-
 
 # need new notation. (in)_(from)
 dat <- TRsub
-IDLT <- function(dat, init, interval = 2){
-  n <- nrow(dat)
-  Hx <- rep(0, n+1)
-  Ux <- rep(0, n+1)
-  
-  hhx <- dat %>% pull(m11)
-  hux <- dat %>% pull(m12)
-  uux <- dat %>% pull(m22)
-  uhx <- dat %>% pull(m21)
-  
-  if (missing(init)){
-    u1 <- matrix(c(hhx[1],hux[1],uhx[1],uux[1]),2)
-    init <- c(.5,.5)
-    for (i in 1:30){
-      init <- u1 %*% init
-      init <- init / sum(init)
-    }
-  }
-  #cat(init)
-  Hx[1] <- init[1] * interval
-  Ux[1] <- init[2] * interval
-  
-  for (i in 1:n){
-    Hx[i+1] <- Hx[i] * hhx[i] + Ux[i] * uhx[i]
-    Ux[i+1] <- Ux[i] * uux[i] + Hx[i] * hux[i]
-  }
-  
-  data.frame(age= c(48,dat$age),Hx=Hx,Ux=Ux,hhx=c(hhx,0),hux=c(hux,0),uux=c(uux,0),uhx=c(uhx,0))
-}
-library(tidyverse)
+
 ID <- 
   TRsub %>% 
   IDLT() %>% 
@@ -342,29 +247,12 @@ ID <-
          r_uh = tr_hux / lead(Ux))
 
 # check
-ID$tr_hhx[-32] + ID$tr_uhx[-32] - ID$Hx[-1]
+# ID$tr_hhx[-32] + ID$tr_uhx[-32] - ID$Hx[-1]
+# 
+# # now figure out rU
+# 
+# ID$tr_uhx
 
-# now figure out rU
-
-ID$tr_uhx
-rpi2u <- function(rpivec, 
-         from ="H",
-         to = "H",
-         start_age = 50,
-         interval = 2) {
-  out           <- cbind(0,rbind(diag(rpivec),0))
-  n             <- length(rpivec)
-  # the final subtraction of the interval is particular to
-  # the way these probabilities were estimated and labelled.
-  # to technically our first one goes from 48 to 50, not from 50 to 52.
-  ages          <- ((0:n) * interval) + start_age - interval
-  from_names    <- c(paste(from,ages,sep="::"))
-  # to_names      <-c(paste(to,ages[-1],sep="::"),"D::Inf")
-  # TR: double checking alignment of age
-  to_names      <- c(paste(to,ages,sep="::"))
-  dimnames(out) <- list(to_names, from_names)
-  out
-}
 
 rHH <- rpi2u(rpivec=ID$r_hh[-32],"H","H")
 rUH <- rpi2u(rpivec=ID$r_uh[-32],"U","H")
@@ -372,6 +260,9 @@ rUU <- rpi2u(rpivec=ID$r_uu[-32],"U","U")
 rHU <- rpi2u(rpivec=ID$r_hu[-32],"H","U")
 # does this need to change?
 rU <- u2U(rHH,rHU,rUH,rUU)
+
+0.9158685 # rev prev 1
+0.9130396 # chrono prev 1
 
 # ------------------------------------ #
 # reverse prevalence convergence       #
@@ -432,5 +323,6 @@ for (i in 1:32){
 }
 lines(a2, stationary_init, lty = 2,lwd=2)
 
+rpitest
 
-
+stationary_init
