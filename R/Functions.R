@@ -15,7 +15,7 @@ pi2u <- function(pivec,
   from_names    <- c(paste(from,ages[-length(ages)],sep="::"),"D::Inf")
   # to_names      <-c(paste(to,ages[-1],sep="::"),"D::Inf")
   # TR: double checking alignment of age
-  to_names      <- c(paste(to,ages[-length(ages)],sep="::"),"D::Inf")
+  to_names      <- c(paste(to,ages[-length(ages)],sep="::"),paste0(from,to,"D::Inf"))
   dimnames(out) <- list(to_names, from_names)
   out
 }
@@ -56,10 +56,10 @@ U2N <- function(U, interval = 2) {
 
 # create U from data subset
 sub2U <- function(X){
-  HH <- pi2u(pivec = TRsub[,"m11"], from = "H", to = "H")
-  HU <- pi2u(pivec = TRsub[,"m12"], from = "H", to = "U")
-  UH <- pi2u(pivec = TRsub[,"m21"], from = "U", to = "H")
-  UU <- pi2u(pivec = TRsub[,"m22"], from = "U", to = "U")
+  HH <- pi2u(pivec = X[,"m11"], from = "H", to = "H")
+  HU <- pi2u(pivec = X[,"m12"], from = "H", to = "U")
+  UH <- pi2u(pivec = X[,"m21"], from = "U", to = "H")
+  UU <- pi2u(pivec = X[,"m22"], from = "U", to = "U")
   
   U <- u2U(HH = HH, # healthy to healthy
            HU = HU, # healthy to unhealthy
@@ -88,13 +88,15 @@ proj_pop <- function(initH = rep(1,32), U){
 
 # get back projection matrix of prevalences, in diagonals,
 # direction depends on whether forward or backward.
-proj_prev <- function(initH, U){
+proj_prev <- function(initH, U, r = FALSE){
   pop <- proj_pop(initH,U)
   PH  <- pop[1:32,1:32]
   PU  <- pop[33:64,1:32]
+  
+  if (!r){
   PH[upper.tri(PH)] <- NA
   PU[upper.tri(PU)] <- NA
-  
+  }
   pi  <- PH / (PH + PU)
   
   pi
@@ -127,6 +129,7 @@ init_constant <- function(TRsub){
   v <- eigen(u)$vectors[,1]
   v / sum(v)
 }
+
 # increment decrement lifetable, two states only.
 IDLT <- function(dat, init, interval = 2){
   n <- nrow(dat)
