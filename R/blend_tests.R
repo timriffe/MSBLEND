@@ -135,8 +135,8 @@ tidysub <-
   # ensure exact composition, possibly redundant
   group_by(state_from, age) %>% 
   mutate(prob = prob / sum(prob)) %>% 
-  filter(state_from != "D",
-         state_to != "D") %>% 
+  filter(state_from != "D") %>% 
+  # previosuly also removes state_to = "D", but testing here.
   # if we end up doing this with all subsets then adjust here to keep year, sex, edu
   select(age, state_from, state_to, prob) %>% 
   ungroup() %>% 
@@ -162,14 +162,15 @@ back_prob <-
   rename(time = time_r) %>% 
   pivot_wider(names_from = c(state_from, state_to), id_cols = age,
               values_from = c(prob,time,tr)) %>% 
-  select(age, Hx = time_H_H, Ux = time_U_U, tr_H_H, tr_U_H, tr_H_U, tr_U_U) %>% 
+  select(age, Hx = time_H_H, Ux = time_U_U, tr_H_H, tr_U_H, tr_H_D, tr_U_D, tr_H_U, tr_U_U) %>% 
   mutate(r_hh = tr_H_H / lead(Hx),
          r_hu = tr_U_H / lead(Hx),
+         r_dh = tr_H_D / (tr_H_D + tr_U_D),   # test
          r_uu = tr_U_U / lead(Ux),
-         r_uh = tr_H_U / lead(Ux)) 
+         r_uh = tr_H_U / lead(Ux),
+         r_du = tr_U_D / (tr_H_D + tr_U_D) )  # test
   
-tail(back_prob)
-tail(ID)
+
 # need new notation. (in)_(from)
 # build out increment-decrement LT
 
@@ -199,6 +200,8 @@ rHH <- rpi2u(rpivec=ID$r_hh[-32],"H","H")
 rUH <- rpi2u(rpivec=ID$r_uh[-32],"U","H")
 rUU <- rpi2u(rpivec=ID$r_uu[-32],"U","U")
 rHU <- rpi2u(rpivec=ID$r_hu[-32],"H","U")
+
+
 # does this need to change?
 rU <- u2U(rHH,rHU,rUH,rUU)
 
@@ -210,21 +213,29 @@ rHU <- rpi2u(rpivec=back_prob$r_hu[-32],"H","U")
 # does this need to change?
 rU2 <- u2U(rHH,rHU,rUH,rUU)
 
+
+
+rDH <- rpi2u(rpivec=back_prob$r_dh[-32],"D","H")
+rDU <- rpi2u(rpivec=back_prob$r_du[-32],"D","U")
+
+rU3 <- rbind(cbind(rHH, rUH, rDH),
+      cbind(rHU, rUU, rDU))
+
 0.9158685 # rev prev 1
 0.9130396 # chrono prev 1
 
 # ------------------------------------ #
 # reverse prevalence convergence       #
 # ------------------------------------ #
-pop <- proj_pop(initH = rep(1, 32),rU)
+pop    <- proj_pop(initH = rep(1, 32),rU)
 
-rpi1 <- proj_prev(initH = rep(1, 32),rU, TRUE)
-rpi0 <- proj_prev(initH = rep(0, 32),rU, TRUE)
+rpi1   <- proj_prev(initH = rep(1, 32),rU, TRUE)
+rpi0   <- proj_prev(initH = rep(0, 32),rU, TRUE)
 
 rpi1_2 <- proj_prev(initH = rep(1, 32),rU2, TRUE)
 rpi0_2 <- proj_prev(initH = rep(0, 32),rU2, TRUE)
 
-a2 <- seq(50,112,by=2)
+a2     <- seq(50,112,by=2)
 plot(NULL, type = 'n',xlim = c(50,110),ylim=c(0,1),
      main = "not yet identical to chrono convergence")
 
