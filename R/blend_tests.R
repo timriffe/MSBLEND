@@ -33,6 +33,7 @@ U <- sub2U(TRsub)
 
 N <- U %>% 
   U2N()
+# these proportions need to come from somewhere.
 N[,c("H::48","U::48")] %*% diag(c(.9158685, 1-.9158685)) %>% rowSums()
 
 0.0000336526
@@ -126,8 +127,7 @@ tidysub <-
          H_D = m14,
          U_U = m22,
          U_H = m21,
-         U_D = m24
-  ) %>% 
+         U_D = m24) %>% 
   pivot_longer(cols = H_H:U_D,
                names_to = c("state_from", "state_to"),
                names_sep = "_",
@@ -168,7 +168,8 @@ back_prob <-
          r_dh = tr_H_D / (tr_H_D + tr_U_D),   # test
          r_uu = tr_U_U / lead(Ux),
          r_uh = tr_H_U / lead(Ux),
-         r_du = tr_U_D / (tr_H_D + tr_U_D) )  # test
+         r_du = tr_U_D / (tr_H_D + tr_U_D) )  
+# test
   
 
 # need new notation. (in)_(from)
@@ -201,7 +202,6 @@ rUH <- rpi2u(rpivec=ID$r_uh[-32],"U","H")
 rUU <- rpi2u(rpivec=ID$r_uu[-32],"U","U")
 rHU <- rpi2u(rpivec=ID$r_hu[-32],"H","U")
 
-
 # does this need to change?
 rU <- u2U(rHH,rHU,rUH,rUU)
 
@@ -210,16 +210,24 @@ rHH <- rpi2u(rpivec=back_prob$r_hh[-32],"H","H")
 rUH <- rpi2u(rpivec=back_prob$r_uh[-32],"U","H")
 rUU <- rpi2u(rpivec=back_prob$r_uu[-32],"U","U")
 rHU <- rpi2u(rpivec=back_prob$r_hu[-32],"H","U")
-# does this need to change?
-rU2 <- u2U(rHH,rHU,rUH,rUU)
-
-
-
-rDH <- rpi2u(rpivec=back_prob$r_dh[-32],"D","H")
 rDU <- rpi2u(rpivec=back_prob$r_du[-32],"D","U")
+rDH <- rpi2u(rpivec=back_prob$r_dh[-32],"D","H")
+# does this need to change?
+# rU2 <- u2U(rHH,rHU,rUH,rUU)
+# dim(rHH)
 
-rU3 <- rbind(cbind(rHH, rUH, rDH),
-      cbind(rHU, rUU, rDU))
+# Include resucisitation origins:
+rU2 <- rbind(
+  cbind(rHH, rUH, rDH),
+  cbind(rHU, rUU, rDU),
+  matrix(0,nrow=32,ncol=32*3))
+
+
+# rDH <- rpi2u(rpivec=back_prob$r_dh[-32],"D","H")
+# rDU <- rpi2u(rpivec=back_prob$r_du[-32],"D","U")
+# 
+# rU3 <- rbind(cbind(rHH, rUH, rDH),
+#       cbind(rHU, rUU, rDU))
 
 0.9158685 # rev prev 1
 0.9130396 # chrono prev 1
@@ -232,6 +240,11 @@ pop    <- proj_pop(initH = rep(1, 32),rU)
 rpi1   <- proj_prev(initH = rep(1, 32),rU, TRUE)
 rpi0   <- proj_prev(initH = rep(0, 32),rU, TRUE)
 
+# these need to be different. How many deaths do we add in?
+# stationary deaths per age? Interesting catch 22. Deaths per age
+# requires an initial mixture! The initial mixture requires deaths
+# per age! So looks like an iterative solution would be nice? i.e.
+# these back probabilities are just a first approximation! 
 rpi1_2 <- proj_prev(initH = rep(1, 32),rU2, TRUE)
 rpi0_2 <- proj_prev(initH = rep(0, 32),rU2, TRUE)
 
