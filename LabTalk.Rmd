@@ -356,7 +356,7 @@ compmat %>%
 - observed prevalence (H = 0.901)
 - assume constant in first time step (H = 0.891)
 - estimate *backward* probabilities (H = similar)
-- back-project, then converge *forward* (H = 0.895)
+- down-extrapolate, then converge *forward* (H = 0.895)
 
 ## Details, constant assumption:
 
