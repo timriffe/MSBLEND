@@ -1,0 +1,187 @@
+---
+title: "Untitled"
+author: "Tim Riffe"
+date: "10/1/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Prelims
+
+Given a set of transition probabilities for a state space like this
+
+```{r statespace, echo = FALSE,warning=FALSE,message=FALSE}
+tools::texi2dvi(here::here('Figures/statespace.tex'),pdf=TRUE,clean=TRUE)
+a<-file.rename(from=here::here("statespace.pdf"),to=here::here("Figures/statespace.pdf"))
+#system(paste("cd",getwd(), "&& inkscape -l Figures/statespace.svg Figures/statespace.pdf",sep=" "))
+knitr::include_graphics(here::here("Figures/statespace.pdf"))
+```
+
+one can calculate the expected time spent in good or poor health given a set if initial conditions. By initial conditions I mean a starting composition at the lowest age, in this case what fraction of people is in good and poor health at the start. 
+
+All we need to get going are the transition probabilities (thanks DCS!) and a once-off calculation of the fundamental matrix *or* an analagous multidecrement (tidy) calculation of the same. Both yield expected occupancy times in each age-state combination conditional on starting in a particular age and state.
+```{r, results = "hide", message =FALSE, warning=FALSE}
+# helpful for data operations
+library(tidyverse)
+library(here)
+library(reshape2)
+# some custom functions
+source(here::here("R","Functions.R"))
+
+# Read in the data (Daniel Schneider gave these to me, haha)
+TR <- readRDS(here::here("Data","TR_v06_collapsed.rds"))
+
+# define a subset
+TRsub <- TR %>% filter(sex == "f",
+                       edu == "all_edu",
+                       time == 1996)
+
+# starting proportions in each state,
+# based on observed prevalence around age 50
+init <- TRsub[1,c("s1_prop","s2_prop")] %>% unlist()
+names(init) <- c("H","U")
+
+# Make the submatrices of U, the transient matrix
+U <- sub2U(TRsub)
+# N is the fundamental matrix
+N <- U %>% 
+  U2N()
+```
+
+From this we can calculate the overall expectantcy given that one starts out healthy (`r N[,c("H::48","U::48")] %*% diag(c(1,0)) %>% sum() %>% round(2)`) or unhealthy (`r N[,c("H::48","U::48")] %*% diag(c(0,1)) %>% sum() %>% round(2)`) at age 50. This is fine to report, and sometimes there are motives to make statements about expected outcomes given a particular starting condition. However, if we wish to make a statement about the population expectancy, then these two quantitites must somehow be blended. One could
+
+ - Measure prevalence at the youngest age at a given time: `r N[,c("H::48","U::48")] %*% diag(init) %>% sum() %>% round(2)`
+ - Assume constant transition probabilities in all ages before the youngest age: `r N[,c("H::48","U::48")] %*% diag(init_constant(TRsub)) %>% sum() %>% round(2)`
+ - Assume a stationary process: `r N[,c("H::48","U::48")] %*% diag(c(.9158685, 1-.9158685)) %>% sum() %>% round(2)` (work in progress)
+ - Extrapolate transition probabilties to younger ages, assume one of the above, then project forward to the starting age. (not done here)
+
+It makes very little difference in this case, as concerns overall expectancy. The leverage of making a good choice of initial conditions depends on: mortality differences between states, and turnover between states. High mortality differentials make initial conditions matter more, but fast mixture (high onset and recovery) makes intial conditions matter very little.
+
+To get a sense, here are those same expectancies if transient turnover (onset and recovery) is reduced by half, but mortality stays the same:
+
+```{r include = FALSE}
+# where mat is just transitions originating in a state
+# hard coded to this particular data.... careful!
+
+# N is the fundamental matrix
+Nlow <- TRsub %>% 
+  rescale_turnover_U(.5) %>% 
+  U2N()
+```
+
+So this is why I want to explore different options of generating reasonable initial conditions. We will compare the *constant assumption* with a derivation of stationary initial conditions.
+
+The idea of stationary initial conditions comes from Brouard 
+
+```{r, echo = FALSE}
+x <- seq(48,110,by=2)
+
+# occupancy times (survival curve) depending on health status at start
+hsx <- N[1:32,"H::48"]+N[33:64,"H::48"]
+usx <- N[1:32,"U::48"]+N[33:64,"U::48"]
+# prevalence healthy by age depending on health status at start
+hin <- N[1:32,"H::48"] / hsx
+uin <- N[1:32,"U::48"] / usx
+```
+
+```{r, echo = FALSE}
+plot(x, hin, type= 'l')
+lines(x, uin)
+polygon(c(x,rev(x)),c(hin,rev(uin)),col = "#9E87BB")
+```
+
+```{r}
+plot(x,hsx/2,type = 'l')
+lines(x,usx/2)
+sum(hsx) - sum(usx)
+```
+
+# set up simulation
+
+Let's at least do a test where we range init from 0 to 1 in steps of .01, and where we range turnover from .1 to 10 in evenly spaced log10 steps.
+
+The way turnover is scaled merits some explanation. 
+```{r, echo = FALSE}
+
+
+
+plot_turnover(TRsub,1)
+plot_turnover(TRsub,.5)
+```
+
+```{r}
+library(colorspace)
+library(ggplot2)
+
+init_steps     <- seq(0,1,by=.01)
+turnover_steps <- exp(seq(log(.1),log(10),length=101))
+
+e50mat <- matrix(NA,
+                nrow = length(init_steps),
+                ncol = length(turnover_steps),
+                dimnames = list(init_steps = init_steps,
+                                turnover_steps = turnover_steps))
+
+for (j in 1:length(turnover_steps)){
+  Ni <- rescale_turnover_U(TRsub, turnover_steps[j]) %>% 
+   U2N()
+  
+  for (i in 1:length(init_steps)){
+    e50ij <- Ni[,c("H::48","U::48")] %*% diag(c(init_steps[i], 1 - init_steps[i])) %>% sum()
+  e50mat[i,j] <- e50ij
+  }
+}
+# image(init_steps,
+#       turnover_steps,
+#       e0mat,
+#       xlab = "Fraction unhealthy at age 50",
+#       ylab = "log10(turnover_steps)",
+#       log = 'y')
+# contour(init_steps,
+#         turnover_steps,
+#         e0mat,
+#         add = TRUE,
+#         log = 'y',
+#         cex=3)
+N <- sub2U(TRsub) %>% U2N()
+e50const <- 
+  N[,c("H::48","U::48")] %*% diag(init_constant(TRsub)) %>% 
+  sum()
+e50diff <- e50mat - e50const
+
+
+e50diff %>% 
+  reshape2::melt() %>% 
+  rename(e50diff = value) %>% 
+  ggplot() + 
+  aes(x = turnover_steps, y = init_steps, z = e50diff) + 
+  scale_x_log10()+
+  geom_tile(aes(fill=e50diff)) + 
+  stat_contour(aes(fill=..level..), geom="polygon") + 
+  #geom_contour(color="white", alpha=0.5) +
+  scale_fill_continuous_diverging("Blue-Red") + 
+  theme_bw() + 
+  labs(title = "LE diff by turnover scale and initial fraction healthy")+ 
+  xlab("turnover scale factor") + 
+  ylab("initial fraction healthy") +
+  annotate(geom = "point",x=1,y=init_constant(TRsub)[1])
+```
+
+# back-project transitions, then forward project starting prev.
+
+Log-linear back-extrap of mortality.
+```{r}
+logit <- function(x){log(x / (1 - x))}
+expit <-  function(x){exp(x) / (1 + exp(x))}
+
+init_back_proj(TRsub, 
+               start_age = 40,
+               max_age_fit = 65,
+               interval = 2)
+```
+
+
+
