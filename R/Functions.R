@@ -336,19 +336,20 @@ init_back_prob <- function(TRsub, forward_init = c(.9,.1)){
            tr_udx = udx * Ux,
            # reverse probabilities: 
            # (note interstate transfer directions)
+           # hu means healthy last step given unhealthy now
            r_hh = tr_hhx / lead(Hx) ,
            r_hu = tr_uhx / lead(Hx),
            r_dh = tr_hdx / lead(Dx), # test
            r_uu = tr_uux / lead(Ux),
            r_uh = tr_hux / lead(Ux),
-           r_du = tr_udx / lead(Dx),
+           r_du = tr_udx / lead(Dx)#,
            # experiments:
-           r_hh = tr_hhx / lead(Hx) ,
-           r_hu = tr_uhx / lead(Hx),
-           r_dh = tr_hdx / lead(Dx), # test
-           r_uu = tr_uux / lead(Ux),
-           r_uh = tr_hux / lead(Ux),
-           r_du = tr_udx / lead(Dx),
+           # r_hhtest = tr_hhx / ((tr_hhx) + (tr_uhx))  ,
+           # r_hutest = tr_uhx / ((tr_hhx) + (tr_uhx)),
+           # r_dhtest = tr_hdx / ((tr_udx) + (tr_hdx)), # test
+           # r_uutest = tr_uux / ((tr_uux) + (tr_hux)),
+           # r_uhtest = tr_hux / ((tr_uux) + (tr_hux)),
+           # r_dutest = tr_udx / ((tr_udx) + (tr_hdx))
     )
   
   # create projection blocks
@@ -358,7 +359,13 @@ init_back_prob <- function(TRsub, forward_init = c(.9,.1)){
   rUU <- rpi2u(rpivec = ID$r_uu[-32], "U", "U")
   rHU <- rpi2u(rpivec = ID$r_hu[-32], "H", "U")
   rDU <- rpi2u(rpivec = ID$r_du[-32], "D", "U")
-  
+  # test
+  # rHH <- rpi2u(rpivec = ID$r_hhtest[-32], "H", "H")
+  # rUH <- rpi2u(rpivec = ID$r_uhtest[-32], "U", "H")
+  # rDH <- rpi2u(rpivec = ID$r_dhtest[-32], "D", "H")
+  # rUU <- rpi2u(rpivec = ID$r_uutest[-32], "U", "U")
+  # rHU <- rpi2u(rpivec = ID$r_hutest[-32], "H", "U")
+  # rDU <- rpi2u(rpivec = ID$r_dutest[-32], "D", "U")
   # compose reverse projection matrix
   rU2 <- rbind(
     cbind(rHH, rUH, rDH),
