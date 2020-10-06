@@ -160,8 +160,9 @@ polygon(c(x,rev(x)),c(hin,rev(uin)), col = "#9E87BB", border = NA)
 
 ## 
 
-
 ![](Figures/avel-chuklanov-8yxIau08-58-unsplash.jpg)
+\tiny
+photo credit Avel Chuklanov [unsplash](https://unsplash.com/photos/8yxIau08-58)
 
 ## Sensitivity (Turnover)
 
@@ -353,10 +354,10 @@ compmat %>%
 
 ## Options for initial composition
 
-- observed prevalence (H = 0.901)
-- assume constant in first time step (H = 0.891)
-- estimate *backward* probabilities (H = similar)
-- down-extrapolate, then converge *forward* (H = 0.895)
+>- observed prevalence (H = 0.901)
+>- assume constant in first time step (H = 0.891)
+>- estimate *backward* probabilities (H = similar)
+>- down-extrapolate, then converge *forward* (H = 0.895)
 
 ## Details, constant assumption:
 
@@ -369,7 +370,7 @@ p(HU) & p(UU)
 - repeatedly multiply this into a starting population.
 - or else take the left eigenvector and rescale it to 1.
 
-## Details, back probability
+## Details, backward probability
 ```{r}
 
 forward_test_vec <- seq(.5,1,by=.01)
@@ -405,7 +406,7 @@ for (i in 1:32){
 }
 ```
 
-## Details, back probability
+## Details, backward probability
 ```{r}
 
 forward_test_vec <- seq(.5,1,by=.01)
@@ -541,9 +542,21 @@ TRsubdown %>%
 
 ## Summary
 
-- LE sensitive to initial conditions low turnover
-- Compression even more sensitive, it seems
-- 3 options aside from observed prevalence
-- Constant assumption the easiest
+>- LE sensitive to initial conditions w low turnover
+>- Compression even more sensitive, it seems
+>- Observed prevalence + 3 options for initial conditions
+>- Constant assumption the easiest
+>- THANKS Marilia N, Daniel CS
+
+\vspace{2em}
+
+\tiny
+All materials here: [https://github.com/timriffe/MSBLEND](https://github.com/timriffe/MSBLEND)
+
+## 
+
+![](Figures/avel-chuklanov-8yxIau08-58-unsplash.jpg)
+
+
 
 

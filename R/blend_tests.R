@@ -388,3 +388,18 @@ back_prob_int <- function(TRsub, forward_init = c(.9,.1)){
 # }
 # lines(a2, rpi,lwd=2)
 
+
+# it seems these back-probability calculations always give back more
+# optimistic starting conditions than what they start with, asymptotically
+# leading to everyone in good health at the start...
+N <- 200
+init_i <- c(.1,.9)
+
+init_mat<- matrix(NA,nrow=N+1,ncol=2)
+init_mat[1, ] <- init_i
+for (i in 1:N){
+  init_mat[i+1, ] <- init_back_prob(TRsub, forward_init = init_mat[i, ])
+}
+init_mat
+plot(init_mat[,1])
+
