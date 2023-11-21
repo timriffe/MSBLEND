@@ -122,6 +122,9 @@ proj_prev <- function(initH, U, r = FALSE){
 
 # do a proj and pick out just the prevalence
 init_pop <- function(initH, U){
+  if (length(initH) == 1){
+    initH <- c(initH,rep(0,nrow(U)/2-1))
+  }
   N   <- length(initH)
   pop <- proj_pop(initH, U = U)
   PH  <- pop[1:N, 1:N]

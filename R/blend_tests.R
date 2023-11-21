@@ -38,9 +38,11 @@ N[,c("H::48","U::48")] %*% diag(c(0.9190056, 1-0.9190056)) %>% sum()
 N[,c("H::48","U::48")] %*% diag(init) %>% sum()
 N[,c("H::48","U::48")] %*% diag(init_constant(TRsub)) %>% sum() 
 
+# this is the space over which results could vary
 N[,c("H::48","U::48")] %*% diag(c(1,0)) %>% sum() 
 N[,c("H::48","U::48")] %*% diag(c(0,1)) %>% sum() 
 
+#  A plot to point out the part of HLE that is up for grabs
 x <- seq(48,110,by=2)
 hsx <- N[1:32,"H::48"]+N[33:64,"H::48"]
 usx <- N[1:32,"U::48"]+N[33:64,"U::48"]
@@ -71,6 +73,10 @@ for (i in 1:32){
 # --------------------------------------------------- #
 # alternative starting prevs                          #
 # --------------------------------------------------- #
+initH <- matrix(c(1,rep(0,31)))
+init_min
+init_pop(initH,U)
+init_pop
 phoptim   <- optimize(interval = c(.7,1), f=init_min, U = U)$min
 pi_optim  <- proj_prev(c(phoptim,rep(0,31)), U) %>% diag()
 
@@ -134,8 +140,8 @@ time_to %>%
   ggplot(aes(x = age, y = time_sprop, color = state_to)) +
   geom_line() +
   geom_line(aes(y = time_it), linetype = "dashed") +
-  geom_line(aes(y = time_r), linetype = "dotted",size=1.5) +
-  geom_line(aes(y = time_test), linetype = "dotted",size=1.5)
+  geom_line(aes(y = time_r), linetype = "dotted",linewidth=1.5) +
+  geom_line(aes(y = time_test), linetype = "dotted",linewidth=1.5)
   
 
 # tidy up the input probabilities
@@ -221,14 +227,7 @@ ID <-
          r_dh = tr_hdx / lead(Dx), # test
          r_uu = tr_uux / lead(Ux),
          r_uh = tr_hux / lead(Ux),
-         r_du = tr_udx / lead(Dx),
-         # experiments:
-         r_hh = tr_hhx / lead(Hx) ,
-         r_hu = tr_uhx / lead(Hx),
-         r_dh = tr_hdx / lead(Dx), # test
-         r_uu = tr_uux / lead(Ux),
-         r_uh = tr_hux / lead(Ux),
-         r_du = tr_udx / lead(Dx),
+         r_du = tr_udx / lead(Dx)
          )
 
 
@@ -308,71 +307,9 @@ for (i in 1:32){
   lines(a2[1:(33-i)],rev(rpiU[row(rpiU) + col(rpiU) == (34 - i)]), col = "#0000FF80")
   # lines(a2[1:(33-i)],rev(rpiD[row(rpiD) + col(rpiD) == (34 - i)]), col = "#00000080")
 }
-
-
 lines(a2, rpi,lwd=2)
 
 
-rpiH 
-
-back_prob_int <- function(TRsub, forward_init = c(.9,.1)){
-  
-  # produce increment-decrement lifetable
-  # derive transfers and back probs
-  ID <- 
-    TRsub %>% 
-    IDLT(init = forward_init) %>% 
-    mutate(CDx = 2 - (Hx + Ux),
-           Dx = diff(c(0,CDx)), # test
-           tr_hhx = hhx * Hx,
-           tr_hux = hux * Hx,
-           tr_hdx = hdx * Hx,
-           tr_uux = uux * Ux,
-           tr_uhx = uhx * Ux,
-           tr_udx = udx * Ux,
-           # reverse probabilities: 
-           # (note interstate transfer directions)
-           r_hh = tr_hhx / lead(Hx) ,
-           r_hu = tr_uhx / lead(Hx),
-           r_dh = tr_hdx / lead(Dx), # test
-           r_uu = tr_uux / lead(Ux),
-           r_uh = tr_hux / lead(Ux),
-           r_du = tr_udx / lead(Dx),
-           # experiments:
-           r_hh = tr_hhx / lead(Hx) ,
-           r_hu = tr_uhx / lead(Hx),
-           r_dh = tr_hdx / lead(Dx), # test
-           r_uu = tr_uux / lead(Ux),
-           r_uh = tr_hux / lead(Ux),
-           r_du = tr_udx / lead(Dx),
-    )
-  
-  # create projection blocks
-  rHH <- rpi2u(rpivec = ID$r_hh[-32], "H", "H")
-  rUH <- rpi2u(rpivec = ID$r_uh[-32], "U", "H")
-  rDH <- rpi2u(rpivec = ID$r_dh[-32], "D", "H")
-  rUU <- rpi2u(rpivec = ID$r_uu[-32], "U", "U")
-  rHU <- rpi2u(rpivec = ID$r_hu[-32], "H", "U")
-  rDU <- rpi2u(rpivec = ID$r_du[-32], "D", "U")
-  
-  # compose reverse projection matrix
-  rU2 <- rbind(
-    cbind(rHH, rUH, rDH),
-    cbind(rHU, rUU, rDU),
-    matrix(0,nrow=32,ncol=32*3))
-  rU2[is.na(rU2)] <- 0
-  
-  # back-project prevalence (H) from H, U, D
-  rpiH <- proj_prev_back(rU2,"H")
-  rpiU <- proj_prev_back(rU2,"U")
-  rpiD <- proj_prev_back(rU2,"D")
-  
-  # They all agree, but just in case, take the converged-upon
-  # prevalence healthy as the mean of those from each starting state.
-  (rpiH[1,ncol(rpiH)-1] + 
-    rpiU[1,ncol(rpiU)-1] + 
-    rpiD[1,ncol(rpiD)-1]) / 3
-}
 
 
 # rpi1_2 <- proj_prev(initH = rep(1, 32),rU2, TRUE)
@@ -402,4 +339,3 @@ for (i in 1:N){
 }
 init_mat
 plot(init_mat[,1])
-
